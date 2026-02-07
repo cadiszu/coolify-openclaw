@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  openclaw-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Add any additional system packages needed
+        OPENCLAW_DOCKER_APT_PACKAGES: ""
+    image: openclaw:latest
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    init: true
+    
+    # Environment variables
+    environment:
+      - HOME=/home/node
+      - TERM=xterm-256color
+      - NODE_ENV=production
+      
+      # Gateway authentication (REQUIRED - set these in Coolify)
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-changeme-generate-secure-token}
+      
+      # AI Model Provider Keys (set in Coolify environment)
+      - CLAUDE_AI_SESSION_KEY=${CLAUDE_AI_SESSION_KEY:-}
+      - CLAUDE_WEB_SESSION_KEY=${CLAUDE_WEB_SESSION_KEY:-}
+      - CLAUDE_WEB_COOKIE=${CLAUDE_WEB_COOKIE:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      
+      # Messaging Platform Tokens (configure as needed)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN:-}
+    
+    # Volumes - Coolify will handle these automatically
+    volumes:
+      - openclaw-config:/home/node/.openclaw
+      - openclaw-workspace:/home/node/.openclaw/workspace
+    
+    # Ports - Coolify will map these to your domain
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+    
+    # Command override
+    command:
+      - node
+      - dist/index.js
+      - gateway
+      - --bind
+      - "${OPENCLAW_GATEWAY_BIND:-lan}"
+      - --port
+      - "18789"
+      - --allow-unconfigured
+    
+    # Health check for Coolify
+    healthcheck:
+      test: ["CMD", "node", "dist/index.js", "health", "--token", "${OPENCLAW_GATEWAY_TOKEN:-changeme-generate-secure-token}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: CLI service for management tasks
+  # Uncomment if you need to run CLI commands
+  # openclaw-cli:
+  #   image: openclaw:latest
+  #   container_name: openclaw-cli
+  #   environment:
+  #     - HOME=/home/node
+  #     - TERM=xterm-256color
+  #     - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-changeme-generate-secure-token}
+  #     - BROWSER=echo
+  #   volumes:
+  #     - openclaw-config:/home/node/.openclaw
+  #     - openclaw-workspace:/home/node/.openclaw/workspace
+  #   stdin_open: true
+  #   tty: true
+  #   init: true
+  #   profiles:
+  #     - cli
+
+volumes:
+  openclaw-config:
+    driver: local
+  openclaw-workspace:
+    driver: local
+
+# Network configuration
+networks:
+  default:
+    name: openclaw-network
